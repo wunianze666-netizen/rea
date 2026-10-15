@@ -52,13 +52,7 @@ it("omits trailing blank cells from visible lines without losing rows", async ()
   );
   const [frame] = frames;
   expect(frame?.lines).toEqual(["left  right", "", "  indented", ""]);
-  // Fixed-width rows remain recoverable from the recorded column count.
-  expect(frame?.lines.map((line) => line.padEnd(frame.columns, " "))).toEqual([
-    "left  right         ",
-    " ".repeat(20),
-    "  indented          ",
-    " ".repeat(20),
-  ]);
+  expect(frame?.columns).toBe(20);
   expect(retention.retained_bytes).toBe(
     Buffer.byteLength(frame?.serialized_state ?? "") +
       Buffer.byteLength("left  right  indented"),
@@ -98,6 +92,58 @@ it("trims only after normalization sees the full-width row", async () => {
     value.replace(/4242 +$/u, "<pid>"),
   );
   expect(frames[0]?.lines[0]).toBe("pid <pid>");
+});
+
+it.each([
+  ["ab", "ab__"],
+  ["界", "界__"],
+  ["界界", "界界"],
+  // The pinned terminal's default Unicode table renders this emoji in one cell.
+  ["😀", "😀___"],
+  ["e\u0301", "e\u0301___"],
+])(
+  "normalizes actual blank cells after %s without inventing cells",
+  async (data, expected) => {
+    const renderer = new TerminalRenderer({
+      columns: 4,
+      rows: 1,
+      scrollback: 0,
+      maxBytes: 100_000,
+      normalize: boundedNormalize((value) => value.replaceAll(" ", "_")),
+    });
+    try {
+      renderer.write(data, 0);
+      const [frame] = await renderer.frames();
+      expect(frame?.lines).toEqual([expected]);
+      expect(frame?.serialized_state).toBe(data);
+      expect(renderer.retention().retained_bytes).toBe(
+        Buffer.byteLength(expected) + Buffer.byteLength(data),
+      );
+      expect(renderer.truncated()).toBe(false);
+    } finally {
+      await renderer.dispose();
+    }
+  },
+);
+
+it("uses terminal cells after a wide-character row is resized", async () => {
+  const renderer = new TerminalRenderer({
+    columns: 4,
+    rows: 1,
+    scrollback: 0,
+    maxBytes: 100_000,
+    normalize: boundedNormalize((value) => value.replaceAll(" ", "_")),
+  });
+  try {
+    renderer.write("界", 0);
+    renderer.resize(6, 1, 1);
+    expect((await renderer.frames()).map(({ lines }) => lines)).toEqual([
+      ["界__"],
+      ["界____"],
+    ]);
+  } finally {
+    await renderer.dispose();
+  }
 });
 
 it("omits rendered frames with unknown expanded size and keeps later bounded states", async () => {

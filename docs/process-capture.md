@@ -258,6 +258,11 @@ selected normalization. Original admitted PTY chunks are available through
 comparison contract, so a capture whose lines were padded to full width does not
 compare as the same contract.
 
+Normalization receives the terminal's actual cells before trailing spaces are
+removed. For example, a two-cell `界` in a four-column row has two trailing blank
+cells; replacing spaces with `_` produces `界__`. JavaScript string length is
+not a terminal-cell count and must not be used to pad these rows.
+
 Custom `normalization.patterns` replace literal text with the caller's literal
 replacement, including dollar sequences such as `$&` and `$$`. An empty pattern
 also matches the first and last string positions. Captures with custom patterns

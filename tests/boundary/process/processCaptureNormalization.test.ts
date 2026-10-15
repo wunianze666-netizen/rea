@@ -28,6 +28,46 @@ const identitySchema = z.object({
 const itWithLinuxCaptureCapability =
   process.platform === "linux" ? itWithCaptureCapability : it.skip;
 
+itWithCaptureCapability.each([
+  { output: "ab", rendered: "ab__" },
+  { output: "界", rendered: "界__" },
+])(
+  "preserves actual terminal cells for $output through process Evidence",
+  async ({ output, rendered }) => {
+    const scenario = parseProcessScenario({
+      executable: process.execPath,
+      arguments: ["-e", `process.stdout.write(${JSON.stringify(output)})`],
+      terminal: { columns: 4, rows: 1, scrollback: 0 },
+      normalization: {
+        paths: false,
+        pids: false,
+        ports: false,
+        patterns: [{ pattern: " ", replacement: "_" }],
+      },
+      settle_ms: 100,
+    });
+    const result = await captureProcessScenario(scenario);
+    if (!result.ok) throw result.error;
+    const capture = parseProcessCapture(
+      createProcessCaptureEvidence(scenario, result.value).normalized_result,
+    );
+    expect(
+      capture.frames.map(({ raw_data, data }) => raw_data ?? data).join(""),
+    ).toBe(output);
+    expect(capture.rendered_frames.at(-1)).toMatchObject({
+      columns: 4,
+      lines: [rendered],
+      serialized_state: output,
+    });
+    expect(capture.cleanup).toMatchObject({
+      owned_process_group: "verified",
+      temporary_root: "removed",
+    });
+    expect(compareProcessCaptures(capture, capture).terminal).toBe("unchanged");
+  },
+  20_000,
+);
+
 itWithCaptureCapability(
   "captures a POSIX PATH executable with a literal backslash in its basename",
   async () => {
