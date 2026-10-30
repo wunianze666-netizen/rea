@@ -299,6 +299,15 @@ the transaction limit. Omission metadata is bounded by the selected
 transaction limit. Other missing sections remain explicit and make the capture
 ineligible for equality claims.
 
+A retained `request-failed` outcome does not by itself make the event inventory
+missing. Its response body stays `unavailable` with reason `request-failed`,
+and REA does not attempt to read it. Comparison can distinguish retained failure
+outcomes and known differences in other transactions; unchanged observations do
+not recover the failed response's unknown bytes. Genuine body/header read
+failures and unexposed selected request content still report coverage gaps.
+Previously saved captures that already declare missing event coverage remain
+unknown in comparison; their completeness flags are not rewritten.
+
 The default limits are 10,000 events, 4 MiB estimated allocation for one
 event, 16 MiB estimated allocation across retained events, 1,024 network
 transactions, 64 KiB of body bytes per transaction phase, 1 MiB estimated

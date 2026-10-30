@@ -713,11 +713,14 @@ export class PlaywrightScenarioNetwork {
       const retainedBody = includeBody
         ? observedBody
         : { state: "not_requested" as const };
-      if (
-        retainedHeaders.state === "unavailable" ||
-        retainedBody.state === "unavailable" ||
-        retainedBody.state === "not_exposed"
-      )
+      // A failed request has a retained terminal outcome; its response body
+      // never became eligible for reading. Keep that unavailable state without
+      // treating it as a hole in the observed event inventory.
+      const bodyCaptureGap =
+        retainedBody.state === "not_exposed" ||
+        (retainedBody.state === "unavailable" &&
+          retainedBody.reason !== "request-failed");
+      if (retainedHeaders.state === "unavailable" || bodyCaptureGap)
         this.gaps.add(
           "Some selected network content was unavailable; per-transaction content states retain the reason.",
         );

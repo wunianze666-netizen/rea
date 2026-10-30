@@ -868,6 +868,7 @@ it("records failures without attempting to read the failed body", async () => {
   collector.failed(request);
   await collector.finish();
   expect(response.bodyReads).toBe(0);
+  expect(collector.limitations()).toEqual([]);
   expect(events).toContainEqual(
     expect.objectContaining({
       kind: "request-failed",
