@@ -407,8 +407,9 @@ const patchEmitter = (emitter, observeEvent) => {
   try {
     emitter.__reaElectronActiveEmitPatched = true;
     emitter.emit = function patchedEmit(event, ...args) {
-      if (typeof event === "string") observeEvent.call(this, event, args);
-      return original.call(this, event, ...args);
+      if (typeof event === "string")
+        applyFunction(observeEvent, this, [event, args]);
+      return applyFunction(original, this, arguments);
     };
   } catch {
     globalThis.__reaElectronActiveHookError = true;
@@ -1267,19 +1268,27 @@ try {
   boundaries.patchApplicationEffects(electron.app);
   boundaries.patchNativeAddonLoading();
   boundaries.patchChildProcess();
-  process.once("uncaughtException", (cause, origin) => {
-    recordRuntime("process-lifecycle", "uncaught-exception", "observed", {
-      argument_shape_values: [cause, origin],
-      error: true,
-    });
-    throw cause;
-  });
-  process.once("unhandledRejection", (reason, promise) => {
-    recordRuntime("process-lifecycle", "unhandled-rejection", "observed", {
-      argument_shape_values: [reason, promise],
-      error: true,
-    });
-    throw reason;
+  // Adding an error listener changes Node/Electron's native failure policy.
+  // Observe dispatch without claiming the event was handled or preempting the
+  // application's listeners; the original emitter still owns return/throw.
+  patchEmitter(process, function observeProcessError(event, args) {
+    if (this !== process) return;
+    const lifecycleEvent =
+      event === "uncaughtException"
+        ? "uncaught-exception"
+        : event === "unhandledRejection"
+          ? "unhandled-rejection"
+          : null;
+    if (lifecycleEvent === null) return;
+    try {
+      recordRuntime("process-lifecycle", lifecycleEvent, "observed", {
+        argument_shape_values: args,
+        error: true,
+      });
+    } catch {
+      // A failed observation must not replace the target's native dispatch.
+      globalThis.__reaElectronActiveHookError = true;
+    }
   });
 } catch (cause) {
   globalThis.__reaElectronActiveHookError = true;

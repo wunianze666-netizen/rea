@@ -5,9 +5,14 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, expect, it } from "vitest";
+import { z } from "zod";
 
 import { electronActiveTimelineEventSchema } from "../../../src/domain/javascript/electronActiveObservation.js";
 import { createTestTempDirectory } from "../../fixtures/temporaryDirectory.js";
+import {
+  processTest,
+  type TestProcesses,
+} from "../../support/process/processFixture.js";
 
 const temporary: string[] = [];
 
@@ -3323,6 +3328,275 @@ it("preserves fatal process termination after recording uncaught exceptions", as
   expect(result.stdout.trim()).toBe("true");
   expect(result.stderr).toContain("fatal-hook-secret");
 });
+
+const policyLineSchema = z.object({
+  phase: z.string(),
+  behavior: z.record(z.string(), z.unknown()),
+  snapshot: z.unknown().optional(),
+});
+
+const processPolicyPrelude = `
+require("electron");
+const warnings = [];
+process.on("warning", (warning) => warnings.push(warning.name));
+const listenerCounts = () => ({
+  rejection: process.listenerCount("unhandledRejection"),
+  exception: process.listenerCount("uncaughtException"),
+});
+const printResult = (phase, behavior) => {
+  process.stdout.write(JSON.stringify({
+    phase,
+    behavior,
+    snapshot: globalThis.__reaElectronActiveSnapshot?.(),
+  }) + "\\n");
+};
+`;
+
+const policySnapshot = (lines: readonly z.infer<typeof policyLineSchema>[]) =>
+  z
+    .object({
+      hook_error: z.boolean(),
+      events: z.array(electronActiveTimelineEventSchema),
+    })
+    .parse(lines.find(({ phase }) => phase === "after")?.snapshot);
+
+const runProcessPolicy = async (
+  processes: TestProcesses,
+  root: string,
+  source: string,
+  mode: string,
+  hooked: boolean,
+) => {
+  const script = join(root, "process-policy.cjs");
+  await writeFile(script, processPolicyPrelude + source);
+  const args = [
+    `--unhandled-rejections=${mode}`,
+    ...(hooked ? ["-r", await stageHook(root)] : []),
+    script,
+  ];
+  const result = await processes.run(process.execPath, args, {
+    cwd: root,
+    env: process.env,
+    timeoutMs: 10_000,
+  });
+  return {
+    ...result,
+    lines: result.stdout
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => policyLineSchema.parse(JSON.parse(line))),
+  };
+};
+
+const withoutPolicySnapshot = (
+  lines: readonly z.infer<typeof policyLineSchema>[],
+) => lines.map(({ phase, behavior }) => ({ phase, behavior }));
+
+processTest.for(["warn", "warn-with-error-code", "throw", "strict", "none"])(
+  "preserves process error policy: %s",
+  async (mode, { processes }) => {
+    const root = await createTestTempDirectory("rea-hook-error-policy-");
+    await writeElectronFixture(root);
+    const source = `
+printResult("before", { listener_counts: listenerCounts() });
+Promise.reject(new Error("controlled-rejection"));
+setTimeout(() => printResult("after", {
+  continued: true, warnings, listener_counts: listenerCounts(),
+}), 30);
+`;
+    const plain = await runProcessPolicy(processes, root, source, mode, false);
+    const hooked = await runProcessPolicy(processes, root, source, mode, true);
+    expect(hooked.signal).toBe(plain.signal);
+    expect(hooked.exitCode, hooked.stderr).toBe(plain.exitCode);
+    expect(withoutPolicySnapshot(hooked.lines)).toEqual(
+      withoutPolicySnapshot(plain.lines),
+    );
+    if (plain.lines.some(({ phase }) => phase === "after")) {
+      const snapshot = policySnapshot(hooked.lines);
+      expect(snapshot.hook_error).toBe(false);
+      expect(
+        snapshot.events.filter(
+          ({ kind, event }) =>
+            kind === "process-lifecycle" && event === "unhandled-rejection",
+        ),
+      ).toHaveLength(1);
+    } else {
+      expect(hooked.stderr).toContain("controlled-rejection");
+    }
+  },
+);
+
+processTest.for([false, true])(
+  "preserves application rejection dispatch (throws: %s)",
+  async (throws, { processes }) => {
+    const root = await createTestTempDirectory("rea-hook-rejection-handler-");
+    await writeElectronFixture(root);
+    const source = `
+const reason = {};
+const promise = Promise.resolve();
+const sentinel = new Error("application-listener-error");
+let called = 0;
+let receiver = false;
+let argumentsPreserved = false;
+process.on("unhandledRejection", function(value, pending) {
+  called += 1;
+  receiver = this === process;
+  argumentsPreserved = value === reason && pending === promise;
+  if (${throws}) throw sentinel;
+});
+let returned = null;
+let caughtOwnError = false;
+try { returned = process.emit("unhandledRejection", reason, promise); }
+catch (cause) { caughtOwnError = cause === sentinel; }
+printResult("after", { called, receiver, argumentsPreserved, returned, caughtOwnError, listener_counts: listenerCounts() });
+`;
+    const plain = await runProcessPolicy(
+      processes,
+      root,
+      source,
+      "throw",
+      false,
+    );
+    const hooked = await runProcessPolicy(
+      processes,
+      root,
+      source,
+      "throw",
+      true,
+    );
+    expect(hooked.exitCode, hooked.stderr).toBe(plain.exitCode);
+    expect(withoutPolicySnapshot(hooked.lines)).toEqual(
+      withoutPolicySnapshot(plain.lines),
+    );
+    const snapshot = policySnapshot(hooked.lines);
+    expect(snapshot.hook_error).toBe(false);
+    expect(snapshot.events).toContainEqual(
+      expect.objectContaining({
+        kind: "process-lifecycle",
+        event: "unhandled-rejection",
+        phase: "observed",
+        error: true,
+      }),
+    );
+  },
+);
+
+processTest(
+  "preserves application uncaught-exception dispatch",
+  async ({ processes }) => {
+    const root = await createTestTempDirectory("rea-hook-uncaught-handler-");
+    await writeElectronFixture(root);
+    const source = `
+const reason = new Error("application-fatal-error");
+process.on("uncaughtException", function(cause, origin) {
+  printResult("after", { sameCause: cause === reason, receiver: this === process, origin, listener_counts: listenerCounts() });
+});
+throw reason;
+`;
+    const plain = await runProcessPolicy(
+      processes,
+      root,
+      source,
+      "throw",
+      false,
+    );
+    const hooked = await runProcessPolicy(
+      processes,
+      root,
+      source,
+      "throw",
+      true,
+    );
+    expect(hooked.exitCode, hooked.stderr).toBe(plain.exitCode);
+    expect(withoutPolicySnapshot(hooked.lines)).toEqual(
+      withoutPolicySnapshot(plain.lines),
+    );
+    expect(policySnapshot(hooked.lines).events).toContainEqual(
+      expect.objectContaining({
+        kind: "process-lifecycle",
+        event: "uncaught-exception",
+        phase: "observed",
+        error: true,
+      }),
+    );
+  },
+);
+
+processTest(
+  "does not attribute a borrowed process emit to process lifecycle",
+  async ({ processes }) => {
+    const root = await createTestTempDirectory("rea-hook-process-receiver-");
+    await writeElectronFixture(root);
+    const source = `
+const { EventEmitter } = require("node:events");
+const other = new EventEmitter();
+const returned = process.emit.call(other, "unhandledRejection", new Error("borrowed"), Promise.resolve());
+printResult("after", { returned, otherListeners: other.listenerCount("unhandledRejection") });
+`;
+    const plain = await runProcessPolicy(
+      processes,
+      root,
+      source,
+      "throw",
+      false,
+    );
+    const hooked = await runProcessPolicy(
+      processes,
+      root,
+      source,
+      "throw",
+      true,
+    );
+    expect(hooked.exitCode, hooked.stderr).toBe(plain.exitCode);
+    expect(withoutPolicySnapshot(hooked.lines)).toEqual(
+      withoutPolicySnapshot(plain.lines),
+    );
+    expect(
+      policySnapshot(hooked.lines).events.filter(
+        ({ kind }) => kind === "process-lifecycle",
+      ),
+    ).toEqual([]);
+  },
+);
+
+processTest(
+  "keeps blocked shell rejection subject to native warning policy",
+  async ({ processes }) => {
+    const root = await createTestTempDirectory("rea-hook-shell-rejection-");
+    await writeElectronFixture(root);
+    const source = `
+require("electron").shell.openExternal("https://example.invalid");
+setTimeout(() => printResult("after", { continued: true, warnings }), 30);
+`;
+    const result = await runProcessPolicy(
+      processes,
+      root,
+      source,
+      "warn",
+      true,
+    );
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(
+      result.lines.find(({ phase }) => phase === "after")?.behavior.continued,
+    ).toBe(true);
+    const snapshot = policySnapshot(result.lines);
+    expect(snapshot.events).toContainEqual(
+      expect.objectContaining({
+        kind: "shell-attempt",
+        event: "openExternal",
+        phase: "blocked",
+      }),
+    );
+    expect(snapshot.events).toContainEqual(
+      expect.objectContaining({
+        kind: "process-lifecycle",
+        event: "unhandled-rejection",
+        phase: "observed",
+      }),
+    );
+  },
+);
 
 const writeElectronFixture = async (
   root: string,

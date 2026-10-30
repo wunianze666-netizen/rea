@@ -147,6 +147,14 @@ window-targeted renderer reload/crash actions, and synthetic `open-url` or
 WebContents identities, process metrics, and IPC channel and value-shape metadata.
 Payload values are not retained.
 
+Process error observations wrap the existing emitter's dispatch without adding
+`uncaughtException` or `unhandledRejection` listeners. The runtime's configured
+policy and the application's own listeners keep control of warnings, recovery
+and fatal termination; the hook does not rethrow merely to record an event.
+Failure to record an observation sets the existing `hook_error` flag rather than
+replacing native dispatch. This does not make rejected shell blocks successful or recover
+an application error that the runtime normally treats as fatal.
+
 `window_index` selects from Playwright's current Page list at the start of each action. REA resolves that Page to its corresponding BrowserWindow once; the action's `target` uses the BrowserWindow's capture-scoped `window_id`, matching the window inventory. Reordering either enumeration after selection does not retarget the action. Handle cleanup failures retain the completed action records and remain owned for provider cleanup retry.
 
 Run the real fixture verifier with an operator-provided Electron runtime:

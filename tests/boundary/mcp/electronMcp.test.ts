@@ -511,18 +511,21 @@ it("runs active Electron scenarios with selected paths and inferred working dire
     strict: false,
     validateFormats: false,
   }).compile(z.record(z.string(), z.unknown()).parse(advertised.outputSchema));
-  const captured = await client.callTool({
-    name: "capture_electron_scenario",
-    arguments: {
-      executable_path: process.execPath,
-      application_path: join(aliasedRoot, "main.js"),
-      application_root: workingDirectory,
-      args: ["--token", "super-secret"],
-      actions: [
-        { step_id: "submit", kind: "click", selector: "#submit-secret" },
-      ],
+  const captured = await client.callTool(
+    {
+      name: "capture_electron_scenario",
+      arguments: {
+        executable_path: process.execPath,
+        application_path: join(aliasedRoot, "main.js"),
+        application_root: workingDirectory,
+        args: ["--token", "super-secret"],
+        actions: [
+          { step_id: "submit", kind: "click", selector: "#submit-secret" },
+        ],
+      },
     },
-  });
+    { toolDefinition: advertised },
+  );
   expect(captured.isError, JSON.stringify(captured)).not.toBe(true);
   expect(
     validateOutput(captured.structuredContent),
@@ -568,14 +571,17 @@ it("runs active Electron scenarios with selected paths and inferred working dire
   expect(scenario_sha256).toBe(
     digestCanonicalValue(selectedScenario, "Electron scenario"),
   );
-  const inferredRoot = await client.callTool({
-    name: "capture_electron_scenario",
-    arguments: {
-      executable_path: process.execPath,
-      application_path: applicationPath,
-      actions: [],
+  const inferredRoot = await client.callTool(
+    {
+      name: "capture_electron_scenario",
+      arguments: {
+        executable_path: process.execPath,
+        application_path: applicationPath,
+        actions: [],
+      },
     },
-  });
+    { toolDefinition: advertised },
+  );
   expect(inferredRoot.isError, JSON.stringify(inferredRoot)).not.toBe(true);
   expect(capturedInputs[1]).toMatchObject({
     application_path: applicationPath,
