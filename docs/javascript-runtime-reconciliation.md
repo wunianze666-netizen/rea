@@ -124,6 +124,13 @@ Every successful cross-layer `observed_as` edge has
 artifact/AST observations and runtime observations remain unchanged and
 retain their own Evidence links.
 
+A V8 Inspector target whose observed protocol type is `node` is compared with
+JavaScript assets and whole-file modules at its mapped entry location, using the
+same candidate rules as scripts. Caller-declared runtime role labels do not turn
+that Node entry into a renderer. Browser/Electron page targets and frames keep
+their renderer candidate category. Unmapped locations remain unknown and
+multiple entry candidates remain ambiguous.
+
 ## Loaded, resident, and not observed
 
 Static JavaScript assets, chunks, and modules receive a separate load-state
@@ -146,6 +153,9 @@ Script inventory completeness remains a separate reported fact. Unavailable,
 truncated, or attach-limited worker inventory prevents negative code-presence
 claims even when the selected page's script inventory is complete. Accepted
 positive script correspondences remain loaded.
+A target-to-entry correspondence alone does not establish script loading or
+module residency. Without a qualifying script observation, a Node entry's
+load state remains unknown even when its target location matches uniquely.
 An Electron script's explicit unknown `frame_scope` preserves its reported
 frame ID and sourceURL provenance as node properties, but does not link that
 script to the current frame inventory. Attach-limited script coverage cannot

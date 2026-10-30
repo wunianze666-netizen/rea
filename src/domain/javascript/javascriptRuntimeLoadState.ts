@@ -57,7 +57,9 @@ const classifyLayer = (
   const direct = new Map<string, string[]>();
   const ambiguous = new Set<string>();
   const incomplete = new Set<string>();
-  for (const match of matches)
+  for (const match of matches) {
+    // Target discovery identifies an entry location, not a loaded script.
+    if (match.entity_kind === "target") continue;
     if (
       match.status === "matched" &&
       match.static_layer_id === layer.layerId &&
@@ -70,6 +72,7 @@ const classifyLayer = (
         if (candidate.static_layer_id === layer.layerId)
           uncertain.add(candidate.static_node_id);
     }
+  }
   const resident = residentNodes(layer, new Set(direct.keys()));
   const runtimeScope = createStaticRuntimeScope(layer, runtimeEntities);
   const scopedEntities = runtimeEntities.filter(
