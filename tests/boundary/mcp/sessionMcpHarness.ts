@@ -74,7 +74,7 @@ export const createSessionMcpHarness = async (
   provider: (closed: string[]) => AnalysisProvider,
   resources: Array<{ close(): Promise<unknown> }>,
   maximumInputElements?: number,
-  outputSchemaProfile?: "off",
+  outputSchemaProfile?: "full" | "compact" | "off",
 ): Promise<SessionMcpHarness> => {
   const first = join(root, "first.hop");
   const second = join(root, "second.hop");

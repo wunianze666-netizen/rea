@@ -158,6 +158,7 @@ const expandAddress = async (
   if (!result.ok) {
     if (
       result.error._tag === "AnalysisCancelledError" ||
+      result.error.cleanupIncomplete ||
       signal?.aborted === true
     )
       return result;

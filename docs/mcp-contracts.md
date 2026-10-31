@@ -202,6 +202,13 @@ relationship coverage and read-specific `limitations`, alongside observed
 `calls`. When a provider does not classify its caveats, they remain on that
 node and coverage is `unknown`. An empty call list with partial or unknown
 coverage is not proof that the function has no calls.
+Both graph workflows stop dispatching relationship reads when a provider reports
+incomplete cleanup and return that typed failure at the outer boundary. Its
+retained partial observation, resource ownership and any owner-supported cleanup
+retry remain attached. Previously admitted source Evidence remains in the session;
+the interrupted traversal does not register a successful graph. Ordinary read
+errors without pending cleanup remain partial graph observations. A later cleanup
+retry releases resources without rerunning the failed traversal.
 `trace_call_path` reports each limited expansion in `residual_unknowns` and
 sets `truncated: true`; any path already supported by observed edges remains
 visible. When a requested goal is not reached but an expansion is unresolved,

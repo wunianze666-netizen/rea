@@ -649,7 +649,11 @@ export class EnhancedTools {
         "provider",
       );
       if (!result.ok) {
-        if (isAnalysisCancellation(result.error)) return result;
+        if (
+          isAnalysisCancellation(result.error) ||
+          result.error.cleanupIncomplete
+        )
+          return result;
         graph[level].push({
           address: current.address,
           status: "error",
