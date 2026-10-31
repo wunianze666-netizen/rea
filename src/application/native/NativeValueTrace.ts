@@ -5,6 +5,7 @@ import {
   nativeValueTraceSchema,
 } from "../../domain/native/nativeValueTrace.js";
 import { createAnalysisExecutionEvidence } from "../../domain/analysisObservation.js";
+import type { Evidence } from "../../domain/evidence.js";
 import {
   AnalysisCancelledError,
   AnalysisOutputError,
@@ -50,6 +51,7 @@ export const traceNativeValues = async (
   const budget = createValueTraceBudget(input, unknowns);
   const { nodes, edges } = budget;
   let targetSha256: string | undefined;
+  let completedObservation: Evidence | undefined;
   let decompilations = 0;
   let callSites = 0;
   while (pending.length > 0) {
@@ -91,9 +93,17 @@ export const traceNativeValues = async (
     decompilations++;
     if (!execution.ok) {
       // A seed failure has no trace to qualify. Preserve the provider's typed
-      // refusal; failures after a validated seed remain partial observations.
-      if (next.depth === 0 || execution.error._tag === "AnalysisCancelledError")
-        return err(execution.error);
+      // refusal. Only ordinary read failures can qualify a partial trace;
+      // unconfirmed cleanup keeps the original error and its resource owner.
+      if (
+        next.depth === 0 ||
+        execution.error._tag === "AnalysisCancelledError" ||
+        execution.error.cleanupIncomplete
+      ) {
+        if (completedObservation !== undefined)
+          execution.error.retainPartialObservation(completedObservation);
+        return execution;
+      }
       unknowns.push({
         procedure: next.procedure,
         address: null,
@@ -129,6 +139,7 @@ export const traceNativeValues = async (
           "Cross-function target digest mismatch",
         ).retainPartialObservation(evidence),
       );
+    completedObservation = evidence;
     const evidenceId = evidence.evidence_id;
     procedures.push({
       address,
@@ -252,8 +263,14 @@ export const traceNativeValues = async (
         signal === undefined ? {} : { signal },
       );
       if (!resolved.ok) {
-        if (resolved.error._tag === "AnalysisCancelledError")
-          return err(resolved.error);
+        if (
+          resolved.error._tag === "AnalysisCancelledError" ||
+          resolved.error.cleanupIncomplete
+        ) {
+          if (completedObservation !== undefined)
+            resolved.error.retainPartialObservation(completedObservation);
+          return resolved;
+        }
         unknowns.push({
           procedure: address,
           address: operation.address,

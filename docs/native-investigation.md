@@ -424,10 +424,17 @@ stable IDs for endpoints outside that page.
 Within one value trace, each exact procedure selector is attempted at most once,
 including failed analyses. A failed seed returns the provider's original typed
 failure and corrective guidance; it cannot establish a trace or target identity.
-Failures while expanding a validated seed remain unknown observations and do not
-establish canonical function identity. A successful seed without a native def-use
-model still returns its procedure and an explicit coverage unknown. A new trace
-can retry failed selectors.
+Ordinary read failures while expanding a validated seed remain unknown
+observations and do not establish canonical function identity. A cancellation or
+incomplete-cleanup failure from a callee dossier or call-target resolution stops
+further reads and returns the producer's typed error, resource ownership and
+existing partial observation. When the producer supplies no partial observation,
+the latest validated dossier is retained in that existing Evidence field. Already
+admitted source Evidence remains in the session; the interrupted trace is not
+registered as successful Evidence. An
+owner-supported cleanup retry releases resources without rerunning the trace.
+A successful seed without a native def-use model still returns its procedure
+and an explicit coverage unknown. A new trace can retry failed selectors.
 
 Paging and traversal completeness are separate facts. `page_truncated` means the
 page omits retained nodes, and the edges they source, before `offset` or after
@@ -439,8 +446,8 @@ page omits retained nodes, and the edges they source, before `offset` or after
 reported only after it rejects work, so an exactly filled budget is not
 truncation; a depth or candidate limit is reported only when no other path
 analyzes or queues that destination. `total_nodes` and `total_edges` count
-retained rows. `truncated` remains true for either kind of omission. Failed
-analyses and unresolved calls stay in `unknowns` and do not truncate the
+retained rows. `truncated` remains true for either kind of omission. Ordinary
+analysis failures and unresolved calls stay in `unknowns` and do not truncate the
 traversal. Each page reruns analysis; pages are not pinned to one snapshot
 across session edits.
 
