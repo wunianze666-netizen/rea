@@ -86,7 +86,7 @@ export class ToolResultDelivery {
   readonly resultBudgetBytes: number;
   constructor(
     maximumResponseBytes: number,
-    private readonly nativeContinuation: (
+    private readonly retainedContinuation: (
       evidence: Evidence,
     ) => Readonly<Record<string, JsonValue>> = () => ({}),
   ) {
@@ -127,7 +127,7 @@ export class ToolResultDelivery {
                   kind: "retained-evidence",
                   evidence_id: evidence.evidence_id,
                 },
-                ...this.nativeContinuation(evidence),
+                ...this.retainedContinuation(evidence),
               }),
         });
   }

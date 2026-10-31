@@ -1,3 +1,4 @@
+import { applicationFeatureViewRequestSchema } from "./applicationFeatureView.js";
 import {
   nativeObservationViewRequestSchema,
   nativeContextViewRequestSchema,
@@ -66,6 +67,7 @@ export const analysisViewRequestSchema = z.discriminatedUnion("kind", [
   webBundleViewRequestSchema,
   nativeFunctionMatchingViewRequestSchema,
   sourceToBundleViewRequestSchema,
+  applicationFeatureViewRequestSchema,
   summaryViewSchema,
   goBinaryViewRequestSchema,
   rustBinaryViewRequestSchema,

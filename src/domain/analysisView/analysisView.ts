@@ -1,3 +1,4 @@
+import { projectApplicationFeatureView } from "./applicationFeatureView.js";
 import { NATIVE_OBSERVATION_OPERATIONS } from "../native/nativeObservation.js";
 import { projectNativeObservationView } from "./nativeObservationView.js";
 import { projectDevicetreeView } from "./devicetreeView.js";
@@ -139,6 +140,8 @@ import {
   nativeFunctionSummaryViewResultSchema,
   sourceToBundleSummaryViewResultSchema,
   sourceToBundlePageViewResultSchema,
+  applicationFeatureSummaryViewResultSchema,
+  applicationFeaturePageViewResultSchema,
   analysisViewResultSchema,
   type AnalysisViewResult,
   type UnsignedAnalysisView,
@@ -203,6 +206,8 @@ export {
   nativeFunctionSummaryViewResultSchema,
   sourceToBundleSummaryViewResultSchema,
   sourceToBundlePageViewResultSchema,
+  applicationFeatureSummaryViewResultSchema,
+  applicationFeaturePageViewResultSchema,
   analysisViewResultSchema,
   type AnalysisViewResult,
   type UnsignedAnalysisView,
@@ -319,6 +324,7 @@ const retainedViewProjectors = new Map<string, RetainedViewProjector>([
   retain("inspect_gpu_code_objects", projectGpuCodeObjectsView),
   retain("match_native_functions", projectNativeFunctionMatchingView),
   retain("compare_source_to_bundle", projectSourceToBundleView),
+  retain("trace_application_feature", projectApplicationFeatureView),
   retain("inspect_artifact", projectArtifactInventoryView),
   retain("inventory_artifact", projectArtifactInventoryView),
   retain("analyze_web_bundle", projectWebBundleView),

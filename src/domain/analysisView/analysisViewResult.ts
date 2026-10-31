@@ -1,3 +1,8 @@
+import {
+  applicationFeatureViewRequestSchema,
+  applicationFeatureViewItemsSchema,
+  applicationFeatureViewContextSchema,
+} from "./applicationFeatureView.js";
 import { analysisViewCoverageSchema } from "./analysisViewCoverage.js";
 import {
   javaScriptRouteInventorySourceSchema,
@@ -946,6 +951,22 @@ export const sourceToBundlePageViewResultSchema = z.strictObject({
   items: sourceToBundleViewItemsSchema,
 });
 
+export const applicationFeatureSummaryViewResultSchema = z.strictObject({
+  ...summaryViewResultBase,
+  artifact: z.null(),
+  parent_operation: z.literal("trace_application_feature"),
+  summary: applicationFeatureViewContextSchema,
+});
+export const applicationFeaturePageViewResultSchema = z.strictObject({
+  ...viewResultBase,
+  ...applicationFeatureViewContextSchema.shape,
+  kind: z.literal("application-feature"),
+  artifact: z.null(),
+  parent_operation: z.literal("trace_application_feature"),
+  view: applicationFeatureViewRequestSchema,
+  items: applicationFeatureViewItemsSchema,
+});
+
 /** Bind the existing nested facet selection to its producer-owned rows. */
 const machoPage = <Facet extends keyof typeof machoViewRows>(facet: Facet) =>
   z.strictObject({
@@ -984,6 +1005,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
   javaScriptRoutesViewResultSchema,
   webBundlePageViewResultSchema,
   sourceToBundlePageViewResultSchema,
+  applicationFeaturePageViewResultSchema,
   z.strictObject({
     ...viewResultBase,
     ...nativeFunctionMatchingContextSchema.shape,
@@ -1073,6 +1095,7 @@ export const analysisViewResultSchema = z.discriminatedUnion("kind", [
     nativeFunctionMatchingSummaryViewResultSchema,
     nativeFunctionSummaryViewResultSchema,
     sourceToBundleSummaryViewResultSchema,
+    applicationFeatureSummaryViewResultSchema,
     webBundleSummaryViewResultSchema,
   ]),
   z.strictObject({

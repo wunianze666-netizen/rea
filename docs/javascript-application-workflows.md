@@ -152,6 +152,27 @@ and application implementation as MCP.
 
 ## Feature tracing
 
+Completed `trace_application_feature` Evidence supports `inspect_analysis_view`
+with `view: {"kind":"summary"}`. If the full trace exceeds MCP delivery limits,
+the capacity error's continuation requests this summary from the exact retained
+parent. The complete trace remains retained; a view does not repeat traversal.
+
+Use `view: {"kind":"application-feature","collection":"nodes","fields":["kind"],"offset":0,"limit":64}`
+to page selected facts. Collections are `nodes`, `edges`, `paths`, `seed_matches`,
+`native_handoffs` and `semantic_matches`. Omit `fields` for compact defaults, or
+use `fields: []` for identities and original `source_index` values. Node defaults
+omit observation payloads; select `observations` explicitly when needed. Edge
+identity always includes its source and target node IDs, even outside the page.
+
+The summary and pages keep original trace counts, `source_coverage`, graph
+coverage and parent/source identities. Page exhaustion applies only to the
+selected retained rows and does not make partial source analysis complete.
+`semantic_matches` pages the original retained discovery window; its original
+offset, total and next offset remain in `semantic_discovery`. A null discovery
+context means it was not recorded, rather than proof of no semantic matches.
+Selected large fields can still exceed delivery limits; reduce the selected
+fields/page or export the complete Evidence. No view raises response budgets.
+
 Select one literal seed kind: node ID, route, string, API, IPC channel, module,
 or native export. Matching is exact or literal substring matching; regular
 expressions and executable predicates are not accepted. The trace includes all
