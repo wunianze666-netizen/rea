@@ -414,6 +414,10 @@ nodes and edges. Node payloads are bounded to 8 MiB and serialized results to
 32 MiB. Pagination returns edges whose source is on the node page and preserves
 stable IDs for endpoints outside that page.
 
+Procedure, node and edge source IDs use the session's retained Evidence identity,
+including after snapshot replay. Replay limitations remain on the trace; they do
+not create replacement source records. Existing saved trace records are not rewritten.
+
 Within one value trace, each exact procedure selector is attempted at most once,
 including failed analyses. A failed seed returns the provider's original typed
 failure and corrective guidance; it cannot establish a trace or target identity.

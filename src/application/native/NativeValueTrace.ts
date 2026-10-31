@@ -118,12 +118,13 @@ export const traceNativeValues = async (
       });
       continue;
     }
-    const evidence = createAnalysisExecutionEvidence(
-      "analyze_function",
-      { procedure: next.procedure },
-      execution.value,
-      "observed",
-    );
+    const observationEvidence = () =>
+      createAnalysisExecutionEvidence(
+        "analyze_function",
+        { procedure: next.procedure },
+        execution.value,
+        "observed",
+      );
     const parsed = functionDossierSchema.safeParse(execution.value.result);
     if (!parsed.success || execution.value.subject == null)
       return err(
@@ -131,7 +132,7 @@ export const traceNativeValues = async (
           "trace_native_values",
           "Function dossier lacks validated facts or artifact identity",
           parsed.success ? undefined : { cause: parsed.error },
-        ).retainPartialObservation(evidence),
+        ).retainPartialObservation(observationEvidence()),
       );
     const dossier = parsed.data;
     const address = dossier.procedure.address;
@@ -144,9 +145,12 @@ export const traceNativeValues = async (
         new AnalysisOutputError(
           "trace_native_values",
           "Cross-function target digest mismatch",
-        ).retainPartialObservation(evidence),
+        ).retainPartialObservation(observationEvidence()),
       );
-    const evidenceId = evidence.evidence_id;
+    // The session owns source identity. Replay caveats do not mint a new source
+    // record; unbound operation ports still commit their observation locally.
+    const evidenceId =
+      execution.value.evidenceId ?? observationEvidence().evidence_id;
     procedures.push({
       address,
       depth: next.depth,
