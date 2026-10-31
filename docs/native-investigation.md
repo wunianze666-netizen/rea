@@ -424,6 +424,11 @@ stable IDs for endpoints outside that page.
 Procedure, node and edge source IDs use the session's retained Evidence identity,
 including after snapshot replay. Replay limitations remain on the trace; they do
 not create replacement source records. Existing saved trace records are not rewritten.
+The workflow profile versions these source identities and the current completeness
+fields. Earlier whole-trace snapshot results do not bypass the current producer.
+A new trace can reuse compatible retained procedure observations; historical
+Evidence remains available. A current compatible whole-trace result can still
+replay directly.
 
 Within one value trace, each exact procedure selector is attempted at most once,
 including failed analyses. A failed seed returns the provider's original typed

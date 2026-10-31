@@ -12,8 +12,22 @@ import { z } from "zod";
 import type { AnalysisProvider } from "../../../src/application/AnalysisProvider.js";
 import { createAnalysisExecution } from "../../../src/application/AnalysisProvider.js";
 import { SNAPSHOT_REPLAY_LIMITATION } from "../../../src/application/binary/AnalysisSnapshotCache.js";
-import { parseEvidence, type Evidence } from "../../../src/domain/evidence.js";
-import { evidenceBundleSchema } from "../../../src/domain/evidenceBundle.js";
+import { workflowAnalysisProfile } from "../../../src/application/WorkflowAnalysisProfile.js";
+import { createAnalysisExecutionEvidence } from "../../../src/domain/analysisObservation.js";
+import {
+  createAnalysisSnapshotWorkflowEntry,
+  parseAnalysisSnapshot,
+} from "../../../src/domain/analysisSnapshot.js";
+import {
+  createEvidence,
+  parseEvidence,
+  type Evidence,
+} from "../../../src/domain/evidence.js";
+import {
+  createEvidenceBundle,
+  evidenceBundleSchema,
+} from "../../../src/domain/evidenceBundle.js";
+import { REA_WORKFLOW_PROVIDER } from "../../../src/domain/investigationProviders.js";
 import { ghidraFunctionDossier } from "../../../src/domain/ghidraValues.fixture.js";
 import { jsonValueSchema } from "../../../src/domain/jsonValue.js";
 import { functionDossierSchema } from "../../../src/domain/native/functionDossier.js";
@@ -140,6 +154,152 @@ const assertClosure = (evidence: Evidence, records: readonly Evidence[]) => {
     );
   }
 };
+
+const directTraceFixture = (path: string) => {
+  const { provider, analysisCount } = traceProvider();
+  const profile = createAnalysisProfile(identity, { fixture: true });
+  const session = createTestBinarySession(provider(), {
+    resolveAnalysisProfile: async () => ok({ profile }),
+  });
+  resources.push({ close: () => session.close() });
+  const createSession = () => session;
+  const dependencies = {
+    readConfiguration: () => parseConfig({}),
+    createBinarySession: createSession,
+    createNativeDispatchBinarySession: createSession,
+    createArtifactBinarySession: createSession,
+    createNativeBinarySession: createSession,
+    createManagedBinarySession: createSession,
+  };
+  const trace = async (snapshotPath: string) =>
+    parseEvidence(
+      await runDirectAnalysis(
+        dependencies,
+        path,
+        "trace_native_values",
+        { procedure: "0x1000" },
+        { snapshotPath },
+      ).then(projectCliAnalysisResult),
+    );
+  return { session, profile, trace, analysisCount };
+};
+
+it.each(["dangling citations", "legacy completeness fields"])(
+  "recomposes a historical native trace with %s from retained primitive sources",
+  async (variant) => {
+    const root = await createTestTempDirectory(
+      "rea-native-trace-old-workflow-",
+    );
+    const path = join(root, "fixture.hop");
+    const snapshotPath = join(root, "analysis.json");
+    await writeFile(path, "synthetic analysis database");
+    const original = directTraceFixture(path);
+    const opened = await original.session.open(path);
+    if (!opened.ok) throw opened.error;
+    const source = await original.session.execute("analyze_function", {
+      procedure: "0x1000",
+    });
+    if (!source.ok) throw source.error;
+    const replay = await original.session.execute("analyze_function", {
+      procedure: "0x1000",
+    });
+    if (!replay.ok) throw replay.error;
+    // This is the former producer's ID construction on an actual replay.
+    const historicalSourceId = createAnalysisExecutionEvidence(
+      "analyze_function",
+      { procedure: "0x1000" },
+      replay.value,
+      "observed",
+    ).evidence_id;
+    expect(historicalSourceId).not.toBe(source.value.evidenceId);
+    const current = await original.trace(snapshotPath);
+    const snapshot = parseAnalysisSnapshot(
+      JSON.parse(await readFile(snapshotPath, "utf8")),
+    );
+    const graph = nativeValueTraceSchema.parse(current.normalized_result);
+    const citedGraph = {
+      ...graph,
+      procedures: graph.procedures.map((row) => ({
+        ...row,
+        evidence_id: historicalSourceId,
+      })),
+      nodes: graph.nodes.map((row) => ({
+        ...row,
+        evidence_id: historicalSourceId,
+      })),
+      edges: graph.edges.map((row) => ({
+        ...row,
+        evidence_id: historicalSourceId,
+      })),
+    };
+    const result = jsonValueSchema.parse(
+      variant === "dangling citations"
+        ? citedGraph
+        : Object.fromEntries(
+            Object.entries(citedGraph).filter(
+              ([key]) => key !== "page_truncated" && key !== "traversal",
+            ),
+          ),
+    );
+    const oldProfile = workflowAnalysisProfile(original.profile);
+    const historical = createEvidence(opened.value, REA_WORKFLOW_PROVIDER, {
+      operation: current.operation,
+      parameters: current.parameters,
+      confidence: "derived",
+      result,
+      rawResult: result,
+      analysisProfile: oldProfile,
+      limitations: current.limitations,
+      evidenceLinks: current.evidence_links,
+    });
+    const retained = snapshot.evidence_bundle.records.filter(
+      (record) => record.evidence_id !== current.evidence_id,
+    );
+    expect(
+      retained.some((record) => record.evidence_id === historicalSourceId),
+    ).toBe(false);
+    const legacy = parseAnalysisSnapshot({
+      ...snapshot,
+      workflow_entries: [
+        createAnalysisSnapshotWorkflowEntry({
+          target: snapshot.target,
+          binding: snapshot.binding,
+          operation: current.operation,
+          parameters: current.parameters,
+          execution: {
+            ...createAnalysisExecution(result, REA_WORKFLOW_PROVIDER, {
+              subject: opened.value,
+              rawResult: result,
+              limitations: historical.limitations,
+            }),
+            analysisProfile: oldProfile,
+          },
+        }),
+      ],
+      evidence_bundle: createEvidenceBundle([...retained, historical]),
+    });
+    await writeFile(snapshotPath, JSON.stringify(legacy));
+    const restored = directTraceFixture(path);
+    const delivered = await restored.trace(snapshotPath);
+    expect(delivered.evidence_id).not.toBe(historical.evidence_id);
+    expect(nativeValueTraceSchema.parse(delivered.normalized_result)).toEqual(
+      graph,
+    );
+    expect(restored.analysisCount()).toBe(0);
+    const resaved = parseAnalysisSnapshot(
+      JSON.parse(await readFile(snapshotPath, "utf8")),
+    );
+    assertClosure(delivered, resaved.evidence_bundle.records);
+    expect(resaved.evidence_bundle.records).toContainEqual(historical);
+    const savedBytes = await readFile(snapshotPath);
+    const repeated = directTraceFixture(path);
+    expect((await repeated.trace(snapshotPath)).evidence_id).toBe(
+      delivered.evidence_id,
+    );
+    expect(repeated.analysisCount()).toBe(0);
+    expect((await readFile(snapshotPath)).equals(savedBytes)).toBe(true);
+  },
+);
 
 it("keeps native trace source citations resolvable through warm, saved and resaved snapshots", async () => {
   const root = await createTestTempDirectory("rea-native-trace-provenance-");
