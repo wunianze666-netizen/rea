@@ -205,6 +205,7 @@ export class IdaProvider implements AnalysisProviderCandidate {
     const unavailableCapabilities = (
       reason: string,
       code: ProviderRejectionCode,
+      remediation: string,
     ) =>
       capabilities.map((capability) =>
         capability.available
@@ -213,6 +214,7 @@ export class IdaProvider implements AnalysisProviderCandidate {
               available: false as const,
               reason,
               availabilityCode: code,
+              remediation,
             }
           : capability,
       );
@@ -226,6 +228,7 @@ export class IdaProvider implements AnalysisProviderCandidate {
               ? "not_configured"
               : "open_options_invalid",
           reason: failure.message,
+          remediation: failure.remediation.action,
           diagnostics: {
             ...registrationDiagnostics,
             configuration_details: failure.details ?? null,
@@ -237,6 +240,7 @@ export class IdaProvider implements AnalysisProviderCandidate {
           this.config.idaMcpConfigPath === undefined
             ? "not_configured"
             : "open_options_invalid",
+          failure.remediation.action,
         ),
       };
     }
@@ -250,6 +254,7 @@ export class IdaProvider implements AnalysisProviderCandidate {
             status: "unavailable" as const,
             code: privacy.code,
             reason: privacy.reason,
+            remediation: privacy.remediation,
             diagnostics: {
               ...registrationDiagnostics,
               mode: "headless",
@@ -260,28 +265,36 @@ export class IdaProvider implements AnalysisProviderCandidate {
               },
             },
           },
-          capabilities: unavailableCapabilities(privacy.reason, privacy.code),
+          capabilities: unavailableCapabilities(
+            privacy.reason,
+            privacy.code,
+            privacy.remediation,
+          ),
         };
-      if (unusable !== undefined)
+      if (unusable !== undefined) {
+        const remediation =
+          "Set workspaceRoot to an existing directory REA can create entries in, or omit it to use the system temporary directory; see docs/ida-provider.md.";
         return {
           availability: {
             status: "unavailable" as const,
             code: "open_options_invalid" as const,
             reason: unusable,
+            remediation,
             diagnostics: {
               ...registrationDiagnostics,
               mode: "headless",
               workspace_root: config.value.workspaceRoot ?? null,
               private_workspace_available: false,
-              configuration_remediation:
-                "Set workspaceRoot to an existing directory REA can create entries in, or omit it to use the system temporary directory; see docs/ida-provider.md.",
+              configuration_remediation: remediation,
             },
           },
           capabilities: unavailableCapabilities(
             unusable,
             "open_options_invalid",
+            remediation,
           ),
         };
+      }
     }
     return {
       availability: {

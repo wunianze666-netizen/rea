@@ -62,6 +62,12 @@ type ToolAvailabilityReason = "available" | ToolUnavailabilityReason;
 
 type ProviderDescriptor = ProviderCapability;
 
+/** Consume the selected producer's action; legacy declarations retain their reason. */
+const descriptorRemediation = (
+  descriptor: ProviderDescriptor,
+): string | null =>
+  descriptor.available ? null : (descriptor.remediation ?? descriptor.reason);
+
 /** Optional integrations whose verified hosts exclude some platforms. */
 export const HOST_RESTRICTED_FEATURES = [
   "packetCapture",
@@ -697,7 +703,7 @@ const ownerProbeAvailability = (
         : observation.code === "not_configured"
           ? "provider_missing"
           : "provider_unavailable",
-    remediation: observation.reason,
+    remediation: observation.remediation ?? observation.reason,
   };
 };
 
@@ -761,7 +767,10 @@ const hostAvailability = ({
   const descriptor = descriptors.get(name);
   return descriptor?.available === false &&
     descriptor.availability_code === "unsupported_host"
-    ? { reason: "unsupported_host", remediation: descriptor.reason }
+    ? {
+        reason: "unsupported_host",
+        remediation: descriptorRemediation(descriptor),
+      }
     : null;
 };
 
@@ -786,7 +795,10 @@ const targetAvailability = ({
     (descriptor.availability_code === "target_kind_unsupported" ||
       descriptor.availability_code === "target_format_unsupported")
   )
-    return { reason: "target_unsupported", remediation: descriptor.reason };
+    return {
+      reason: "target_unsupported",
+      remediation: descriptorRemediation(descriptor),
+    };
   if (
     targetKind !== undefined &&
     targetKind !== "executable" &&
@@ -836,7 +848,8 @@ const providerAvailability = ({
     : {
         reason: "provider_unavailable",
         remediation:
-          descriptor.reason ?? "Choose another target or configured provider.",
+          descriptorRemediation(descriptor) ??
+          "Choose another target or configured provider.",
       };
 };
 
@@ -918,7 +931,8 @@ const composedAvailabilityFor = (
             ? "unsupported_host"
             : "provider_unavailable",
         remediation:
-          unavailable.reason ?? "Choose another target or configured provider.",
+          descriptorRemediation(unavailable) ??
+          "Choose another target or configured provider.",
       },
     };
   return {

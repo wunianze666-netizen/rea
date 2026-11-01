@@ -75,6 +75,7 @@ export const providerCapability = z.discriminatedUnion("available", [
     available: z.literal(false),
     reason: z.string().nullable(),
     availability_code: z.enum(PROVIDER_REJECTION_CODES).nullable(),
+    remediation: z.string().exactOptional(),
   }),
 ]);
 export type ProviderCapability = z.output<typeof providerCapability>;
@@ -108,6 +109,7 @@ const providerCapabilityGroup = z.discriminatedUnion("available", [
     available: z.literal(false),
     reason: z.string().nullable(),
     availability_code: z.enum(PROVIDER_REJECTION_CODES).nullable(),
+    remediation: z.string().exactOptional(),
   }),
 ]);
 
@@ -133,6 +135,9 @@ export const expandProviderCapabilities = (
           available: group.available,
           reason: group.reason,
           availability_code: group.availability_code,
+          ...(!group.available && group.remediation !== undefined
+            ? { remediation: group.remediation }
+            : {}),
           effects: Object.fromEntries(
             PROVIDER_EFFECT_NAMES.map((name) => [
               name,
@@ -244,6 +249,7 @@ const providerAvailabilityStates = {
     status: z.literal("unavailable"),
     code: providerRejectionCode,
     reason: z.string().min(1),
+    remediation: z.string().exactOptional(),
   }),
 };
 

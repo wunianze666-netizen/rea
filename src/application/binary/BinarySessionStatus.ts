@@ -265,11 +265,16 @@ const providerStateSummary = <
     readonly code: string | null;
     readonly reason: string | null;
   },
->({
-  status,
-  code,
-  reason,
-}: State) => ({ status, code, reason });
+>(
+  state: State,
+) => ({
+  status: state.status,
+  code: state.code,
+  reason: state.reason,
+  ...("remediation" in state && typeof state.remediation === "string"
+    ? { remediation: state.remediation }
+    : {}),
+});
 
 const providerSummary = ({
   id,
@@ -332,7 +337,11 @@ type CapabilityProjection = Omit<
   "operation" | "available" | "reason"
 > & { readonly operation: string } & (
     | { readonly available: true; readonly reason: null }
-    | { readonly available: false; readonly reason: string }
+    | {
+        readonly available: false;
+        readonly reason: string;
+        readonly remediation?: string;
+      }
   );
 type ProviderCapabilityGroup = ProviderCapabilitySet["groups"][number];
 
@@ -382,6 +391,9 @@ export const providerCapabilitySets = (
             available: false as const,
             reason: descriptor.reason,
             availability_code: availabilityCode,
+            ...(descriptor.remediation === undefined
+              ? {}
+              : { remediation: descriptor.remediation }),
           };
       const key = JSON.stringify([
         effects,
@@ -389,6 +401,7 @@ export const providerCapabilitySets = (
         status.available,
         status.reason,
         status.availability_code,
+        descriptor.available ? null : (descriptor.remediation ?? null),
       ]);
       const group = groups.get(key);
       if (group === undefined)

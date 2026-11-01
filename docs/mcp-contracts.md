@@ -742,6 +742,21 @@ requirements. Compare the union of group names with `tools/list` when checking
 that a client received the full catalog. An operation absent from all groups is
 missing from the complete inventory; it is not an implicit unavailable entry.
 
+Unavailable provider observations and capability groups can carry an optional
+`remediation` action separately from their failure `reason`. Discovery uses
+the selected owner's action when present; historical observations without it
+keep the reason fallback. Groups with different actions remain distinct.
+Provider cancellation and cleanup status do not change because advice is
+present. JEB discovery diagnostics retain the projected timeout code and budget;
+the action is advice, not a new retry permission or a reconstructed live error.
+
+Strict clients must accept this additional optional field on unavailable
+provider states and capability groups. Refresh MCP `tools/list` after upgrade
+before validating replies against cached full schemas. Existing groups without
+the field still parse, successful groups omit it, and saved Evidence is not
+rewritten. Summary keeps the provider-owned action while complete detail also
+retains the existing diagnostics.
+
 `detail` selects the projection and the result echoes it. The default
 `summary` keeps open state, target identity, the binding, current-route
 `capabilities`, run, activity and health status, and each provider candidate's

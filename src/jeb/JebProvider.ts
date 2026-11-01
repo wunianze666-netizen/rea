@@ -219,9 +219,17 @@ export class JebProvider implements JebAnalysisPort {
           status: "unavailable",
           code: "runtime_unavailable",
           reason: projected.message,
+          remediation: projected.remediation.action,
           diagnostics: {
             ...cause.diagnostics,
             endpoint: this.#selectedEndpoint,
+            failure: {
+              code: projected.code,
+              category: projected.category,
+              ...(cause instanceof AnalysisTimeoutError
+                ? { timeout_ms: cause.timeoutMs }
+                : {}),
+            },
           },
         };
       }
@@ -229,6 +237,7 @@ export class JebProvider implements JebAnalysisPort {
         status: "unavailable",
         code: "not_configured",
         reason: `${cause instanceof Error ? cause.message : "The JEB MCP endpoint did not respond"}. ${JEB_CONNECTION_REMEDIATION}`,
+        remediation: JEB_CONNECTION_REMEDIATION,
         diagnostics: { endpoint: this.#selectedEndpoint },
       };
     }

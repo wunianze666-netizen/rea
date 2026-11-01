@@ -287,10 +287,12 @@ const rejectionCodeOf = (
 
 export const adbConfigurationAvailability = (
   cause: AdbConfigurationFailure,
-): ProviderAvailability =>
-  ({
-    status: "unavailable",
-    code: rejectionCodeOf(cause.code),
-    reason: cause.message,
-    diagnostics: { ...cause.diagnostics },
-  }) as ProviderAvailability;
+): ProviderAvailability => ({
+  status: "unavailable",
+  code: rejectionCodeOf(cause.code),
+  reason: cause.message,
+  ...(typeof cause.diagnostics.remediation === "string"
+    ? { remediation: cause.diagnostics.remediation }
+    : {}),
+  diagnostics: { ...cause.diagnostics },
+});

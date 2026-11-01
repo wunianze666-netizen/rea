@@ -256,6 +256,8 @@ type CapabilityAvailability =
   | {
       readonly available: false;
       readonly reason: string;
+      /** Producer-owned recovery, distinct from the failure description. */
+      readonly remediation?: string;
       readonly availabilityCode?: ProviderRejectionCode;
     };
 
@@ -302,6 +304,8 @@ export type ProviderAvailability =
       readonly status: "unavailable";
       readonly code: ProviderRejectionCode;
       readonly reason: string;
+      /** Action supplied by the availability owner; omission preserves legacy fallback. */
+      readonly remediation?: string;
       readonly diagnostics: Readonly<Record<string, JsonValue>>;
     };
 
