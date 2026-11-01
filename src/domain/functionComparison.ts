@@ -26,7 +26,7 @@ export const compareFunctions = (
   const dimensions = compareDimensions(left, right, {
     links,
     providersDiffer,
-    sameEntry: match.method === "same-entry",
+    functionMatched: match.status === "matched",
     coordinateContext,
   });
   const changes = dimensions.filter(({ status }) => status !== "unchanged");

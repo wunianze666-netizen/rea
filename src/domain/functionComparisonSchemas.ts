@@ -34,7 +34,12 @@ const functionDimensionContextShape = {
   dimension: functionComparisonDimensionNameSchema,
   left_count: z.int().min(0).nullable(),
   right_count: z.int().min(0).nullable(),
-  evidence_links: z.array(evidenceIdSchema).min(2),
+  evidence_links: z
+    .array(evidenceIdSchema)
+    .min(2)
+    .describe(
+      "Selected left and right source Evidence first; additional supporting sources follow.",
+    ),
   limitations: z.array(z.string()),
 };
 
@@ -66,6 +71,15 @@ const functionDimensionSchema = z.union([
 ]);
 
 const functionMatchSchema = z.union([
+  z.object({
+    status: z.literal("matched"),
+    method: z.literal("same-evidence"),
+    evidence_id: evidenceIdSchema.describe(
+      "Both selections refer to this authenticated observation. This does not establish real-world function or facet completeness.",
+    ),
+    left_name: z.string(),
+    right_name: z.string(),
+  }),
   z.object({
     status: z.literal("matched"),
     method: z.literal("symbol"),
@@ -106,6 +120,23 @@ export const functionComparisonResultSchema = z
     limitations: z.array(z.string()),
   })
   .superRefine((result, context) => {
+    const match = result.function_match;
+    if (
+      match.method === "same-evidence" &&
+      (match.left_name !== match.right_name ||
+        result.left_subject_sha256 !== result.right_subject_sha256 ||
+        result.dimensions.some(
+          (dimension) =>
+            dimension.evidence_links[0] !== match.evidence_id ||
+            dimension.evidence_links[1] !== match.evidence_id,
+        ))
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["function_match"],
+        message:
+          "Same-Evidence correspondence requires the same observed name, subject and both selected source links.",
+      });
     const dimensions = new Map<DimensionName, FunctionDimension>();
     for (const [index, dimension] of result.dimensions.entries()) {
       if (dimensions.has(dimension.dimension))

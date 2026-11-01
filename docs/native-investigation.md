@@ -1152,6 +1152,23 @@ and slice commitments establish the same canonical entry. The result reports
 remain separate dimensions. Equal numeric addresses without applicable coordinate
 commitments do not establish same-entry correspondence. Inspect the retained
 source Evidence and coverage when correspondence remains ambiguous.
+
+Selecting the same authenticated `analyze_function` Evidence on both sides
+reports `matched`, `method: "same-evidence"` and that record's `evidence_id`.
+This method takes precedence over symbol and entry matching for identical
+observations. It establishes the identity of the selected observation; it does
+not establish that the provider recovered the real function correctly, make its
+coordinate mapping known, or upgrade missing facet coverage. The overall result
+can remain `unknown`. Distinct records with equal-looking addresses or names
+still require the existing coordinate or symbol commitments.
+
+Strict comparison readers must accept the new `same-evidence` method and its
+`evidence_id`; MCP clients should refresh `tools/list` before validating these
+replies. A same-ID comparison that previously reported `ambiguous` / `explicit`
+can now report `matched` / `same-evidence` while retaining unknown dimensions.
+Previously saved comparison Evidence is not rewritten, and readers should keep
+accepting the older methods for those records.
+
 To aggregate already-retained comparison results, pass their exact IDs to
 `find_changed_behavior`, for example:
 

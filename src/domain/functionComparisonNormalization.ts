@@ -27,6 +27,14 @@ export const functionMatch = (
 ): FunctionComparisonResult["function_match"] => {
   const leftName = left.dossier.procedure.name;
   const rightName = right.dossier.procedure.name;
+  if (left.evidence.evidence_id === right.evidence.evidence_id)
+    return {
+      status: "matched",
+      method: "same-evidence",
+      evidence_id: left.evidence.evidence_id,
+      left_name: leftName,
+      right_name: rightName,
+    };
   if (coordinateContext === "common") {
     const leftEntry = nativeAddressInputSchema.safeParse(
       left.dossier.procedure.address,
