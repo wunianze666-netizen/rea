@@ -6,6 +6,11 @@ import { NATIVE_DISPATCH_METADATA_SOURCES } from "./native/NativeDispatchMetadat
 import { NATIVE_UI_ACTION_OPERATIONS } from "./native/NativeUiActionTrace.js";
 import { NATIVE_CALL_ROUTE_SOURCES } from "./native/NativeCallRoutes.js";
 import { z } from "zod";
+import {
+  analysisCleanupRetrySchema,
+  cleanupRetryRemediation,
+  type AnalysisCleanupRetry,
+} from "../domain/analysisErrorRecovery.js";
 import type { BinarySessionDetail } from "../contracts/sessionStatusContract.js";
 import { sqliteDatabaseCapability } from "./sqlite/SqliteDatabaseCapability.js";
 import type {
@@ -50,6 +55,8 @@ const FRIDA_OPERATION_NAMES: ReadonlySet<string> = new Set(
 
 const statusSchema = z.object({
   open: z.boolean(),
+  cleanup_pending: z.boolean().default(false),
+  cleanup_retry: analysisCleanupRetrySchema.optional(),
   session_kind: z.literal("bundle_resources").optional(),
   kind: z.enum(["executable", "database", "archive", "artifact"]).optional(),
   format: z.string().optional(),
@@ -134,6 +141,8 @@ type AvailabilityContext = {
   readonly name: string;
   readonly kind: ToolKind;
   readonly targetOpen: boolean;
+  readonly cleanupPending: boolean;
+  readonly cleanupRetry: AnalysisCleanupRetry | undefined;
   readonly resourceSession: boolean;
   readonly requiresActiveTarget: boolean;
   readonly targetKind:
@@ -262,6 +271,8 @@ export const buildCapabilityInventory = (
       name: contract.name,
       kind: contract.kind,
       targetOpen: status.open,
+      cleanupPending: status.cleanup_pending,
+      cleanupRetry: status.cleanup_retry,
       resourceSession: status.session_kind === "bundle_resources",
       requiresActiveTarget:
         "requiresActiveTarget" in contract &&
@@ -775,13 +786,19 @@ const targetAvailability = ({
   targetKind,
   targetFormat,
   targetOpen,
+  cleanupPending,
+  cleanupRetry,
   requiresActiveTarget,
   descriptors,
 }: AvailabilityContext): Availability | null => {
   if (!targetOpen && requiresActiveTarget)
     return {
       reason: "target_required",
-      remediation: "Call open_binary with a supported local target.",
+      remediation: cleanupPending
+        ? cleanupRetry === undefined
+          ? "This connection retains incomplete cleanup. Review the owning failure's reported resources and recovery action before opening another target."
+          : `${cleanupRetryRemediation(cleanupRetry)} After cleanup is confirmed, call open_binary with a supported local target.`
+        : "Call open_binary with a supported local target.",
     };
   const descriptor = descriptors.get(name);
   if (

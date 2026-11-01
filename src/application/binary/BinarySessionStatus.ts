@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AnalysisCleanupRetry } from "../../domain/analysisErrorRecovery.js";
 import type { InvestigationStatistics } from "../../domain/investigationLifecycle.js";
 import { artifactTargetRefusal } from "../../domain/apple/artifactTargetApplicability.js";
 import { targetApplicabilityRefusal } from "../../domain/targetApplicability.js";
@@ -43,6 +44,7 @@ interface BinarySessionStatusInput {
   readonly requestActivitySnapshots: readonly ProviderRequestActivitySnapshot[];
   readonly providerOperationHealth?: ProviderOperationHealth | null;
   readonly cleanupPending?: boolean;
+  readonly cleanupRetry?: AnalysisCleanupRetry;
   readonly detail?: BinarySessionDetail;
   readonly signal?: AbortSignal;
 }
@@ -61,6 +63,7 @@ export const binarySessionStatus = async ({
   requestActivitySnapshots,
   providerOperationHealth,
   cleanupPending = false,
+  cleanupRetry,
   detail = "complete",
   signal,
 }: BinarySessionStatusInput): Promise<JsonValue> => {
@@ -141,6 +144,9 @@ export const binarySessionStatus = async ({
   const common = {
     investigation,
     cleanup_pending: cleanupPending,
+    ...(cleanupRetry === undefined
+      ? {}
+      : { cleanup_retry: { ...cleanupRetry } }),
     capabilities,
     analysis_provider_binding: analysisProviderBinding,
     analysis_provider_candidates: analysisProviderCandidates,

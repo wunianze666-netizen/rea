@@ -1260,6 +1260,10 @@ export class BinarySession
       cleanupPending:
         this.#externalMutationCleanupFailure?.cleanupIncomplete === true ||
         this.#retainsCloseCleanup(),
+      ...(this.#externalMutationCleanupFailure?.cleanupIncomplete !== true &&
+      this.#retainsCloseCleanup()
+        ? { cleanupRetry: { operation: "close_binary" as const } }
+        : {}),
     });
   }
 

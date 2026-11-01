@@ -891,6 +891,17 @@ inspection fails or is cancelled before a provider client exists. If no client
 remains, no provider run or health observation is available; follow the cleanup
 error's reported resources.
 
+When the session owns every pending cleanup for `close_binary`, both detail
+levels include `cleanup_retry: {"operation":"close_binary"}`. This is a
+conditional same-connection cleanup action, not a promise that cleanup succeeds.
+Target-dependent tool guidance names it before suggesting another target.
+The field is omitted once cleanup settles and while a separate external-mutation
+owner still requires its own recovery. `cleanup_pending` alone never establishes
+a close retry; consult the owning failure's resource and recovery details.
+Older status records may omit `cleanup_retry`. The session object schema permits
+additional fields; refresh `tools/list` to discover this optional field's exact
+shape. The existing error recovery shape is unchanged.
+
 ### Retained cleanup retry
 
 A `close_binary` that retires the target clears engine replay state while

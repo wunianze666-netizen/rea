@@ -27,9 +27,10 @@ export type AnalysisErrorRecovery =
  * Same-connection operation that retries every live cleanup resource an error
  * reports. Only the owner retaining those resources for that retry binds it.
  */
-export interface AnalysisCleanupRetry {
-  readonly operation: "close_binary";
-}
+export const analysisCleanupRetrySchema = z.strictObject({
+  operation: z.literal("close_binary"),
+});
+export type AnalysisCleanupRetry = z.infer<typeof analysisCleanupRetrySchema>;
 
 export const cleanupRetryRecovery = (
   retry: AnalysisCleanupRetry,

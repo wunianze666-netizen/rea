@@ -1,5 +1,6 @@
 import { procedureInfoSchema } from "../domain/native/procedureInfo.js";
 import { z } from "zod";
+import { analysisCleanupRetrySchema } from "../domain/analysisErrorRecovery.js";
 import { investigationStatisticsSchema } from "../domain/investigationLifecycle.js";
 import { utcDateTimeSchema } from "../domain/offsetDateTime.js";
 
@@ -535,6 +536,7 @@ export const sessionProviderFacts = z
   .object({
     investigation: investigationStatisticsSchema,
     cleanup_pending: z.boolean(),
+    cleanup_retry: analysisCleanupRetrySchema.optional(),
     capabilities: z.array(providerCapabilitySet),
     analysis_run: analysisRun,
     analysis_activity: analysisActivity,
