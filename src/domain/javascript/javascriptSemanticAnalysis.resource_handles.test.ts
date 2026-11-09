@@ -198,3 +198,22 @@ it("keeps an awaited handle release uncertain after an opaque receiver write", (
     ),
   ).toEqual([{ method: "close", linked: 1, resolution: "partial" }]);
 });
+
+it("keeps a conditional opaque receiver replacement partial", () => {
+  expect(
+    releases(`import {open} from 'node:fs/promises';
+    let h=open('input.txt');const ready=await h;if(change)eval('h=ready');h.close();`),
+  ).toEqual([{ method: "close", linked: 1, resolution: "partial" }]);
+});
+
+it.each([
+  "let h=open('input.txt');const ready=await h;h.close();eval('h=ready');",
+  "const h=open('input.txt');const ready=await h;eval('h=ready');h.close();",
+])(
+  "does not infer a fulfilled receiver without a possible earlier write: %s",
+  (body) => {
+    expect(releases(`import {open} from 'node:fs/promises';${body}`)).toEqual(
+      [],
+    );
+  },
+);
