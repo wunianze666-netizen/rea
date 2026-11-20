@@ -2799,6 +2799,52 @@ describe("suffix-only non-runtime URL references", () => {
   );
 });
 
+it.each([
+  ["./\ud800.js", "app/\ufffd.js"],
+  ["./\udc00.js", "app/\ufffd.js"],
+  ["./\ud800%20x.js", "app/\ufffd x.js"],
+  ["./\ud800%zz.js", "app/\ufffd%zz.js"],
+  ["./\ud800.js?worker=1#entry", "app/\ufffd.js"],
+  ["./\ufffd.js", "app/\ufffd.js"],
+  ["./\ud83c\udf8b.js", "app/\ud83c\udf8b.js"],
+])(
+  "resolves URL scalar values without changing the declared spelling %j",
+  (declaredPath, expected) => {
+    expect(
+      resolve({
+        declaredPath,
+        sourcePath: "app/main.js",
+        context: "url-reference",
+        files: fileMap([file(expected, "root")]),
+      }),
+    ).toMatchObject({
+      declared_path: declaredPath,
+      resolution_status: "resolved",
+      resolved_path: expected,
+    });
+  },
+);
+
+it("keeps a filesystem path distinct from its scalar-value URL spelling", () => {
+  const declaredPath = "./\ud800.js";
+  expect(
+    resolve({
+      declaredPath,
+      sourcePath: "app/main.js",
+      context: "filesystem-expression",
+      runtimePathKind: "exact-file",
+      files: fileMap([
+        file("app/\ud800.js", "root"),
+        file("app/\ufffd.js", "root"),
+      ]),
+    }),
+  ).toMatchObject({
+    declared_path: declaredPath,
+    resolution_status: "resolved",
+    resolved_path: "app/\ud800.js",
+  });
+});
+
 describe("url-reference JavaScript artifact path resolution", () => {
   it.each([
     ["C|?cache=1#entry", "dist/C|"],

@@ -1,3 +1,4 @@
+import { toUSVString } from "node:util";
 import { strictUtf8Decoder } from "./strictUtf8.js";
 /**
  * Pure string predicates for artifact path syntax. The local artifact
@@ -64,7 +65,8 @@ const hexNibble = (byte: number): number => {
  * them. Callers refuse encoded dot and separator bytes before decoding.
  */
 export const percentDecodeUrlPath = (value: string): string | null => {
-  if (!/%[0-9a-f]{2}/iu.test(value)) return value;
+  // URL inputs are scalar-value strings; keep this true on the fast path too.
+  if (!/%[0-9a-f]{2}/iu.test(value)) return toUSVString(value);
   // Percent escapes are ASCII, so their markers cannot be confused with a
   // UTF-8 code unit. Compact the encoded path into its own byte buffer.
   const bytes = Buffer.from(value, "utf8");

@@ -59,3 +59,14 @@ it.each([
 ])("preserves URL path decoding for %j", (input, expected) => {
   expect(percentDecodeUrlPath(input)).toBe(expected);
 });
+
+it.each([
+  ["./\ud800.js", "./\ufffd.js"],
+  ["./\udc00.js", "./\ufffd.js"],
+  ["./\ud800%20x.js", "./\ufffd x.js"],
+  ["./\ud800%zz.js", "./\ufffd%zz.js"],
+  ["./\ud83c\udf8b.js", "./\ud83c\udf8b.js"],
+  ["./\ufffd.js", "./\ufffd.js"],
+])("uses URL scalar values when decoding %j", (input, expected) => {
+  expect(percentDecodeUrlPath(input)).toBe(expected);
+});

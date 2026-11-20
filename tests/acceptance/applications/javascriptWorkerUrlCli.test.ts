@@ -63,6 +63,47 @@ const workerReferences = (graph: JavaScriptApplicationGraph) =>
     );
 
 cliTest(
+  "resolves Worker URLs using scalar-value string conversion",
+  async ({ cli }) => {
+    const root = await createTestTempDirectory("rea-worker-url-scalar-");
+    await writeFixtureFiles(root, {
+      "app/high.mjs": 'new Worker(new URL("./\\uD800.js", import.meta.url));',
+      "app/low.mjs": 'new Worker(new URL("./\\uDC00.js", import.meta.url));',
+      "app/encoded.mjs":
+        'new Worker(new URL("./\\uD800%20x.js", import.meta.url));',
+      "app/replacement.mjs":
+        'new Worker(new URL("./\\uFFFD.js", import.meta.url));',
+      "app/pair.mjs":
+        'new Worker(new URL("./\\uD83C\\uDF8B.js", import.meta.url));',
+      "app/\ufffd.js": "export const worker = true;",
+      "app/\ufffd x.js": "export const worker = true;",
+      "app/\ud83c\udf8b.js": "export const worker = true;",
+    });
+    const expected = [
+      ["app/high.mjs", "./\ud800.js", "app/\ufffd.js"],
+      ["app/low.mjs", "./\udc00.js", "app/\ufffd.js"],
+      ["app/encoded.mjs", "./\ud800%20x.js", "app/\ufffd x.js"],
+      ["app/replacement.mjs", "./\ufffd.js", "app/\ufffd.js"],
+      ["app/pair.mjs", "./\ud83c\udf8b.js", "app/\ud83c\udf8b.js"],
+    ] as const;
+    for (const surface of ["CLI", "stdio MCP"] as const) {
+      const result = await analyzeJavaScriptDirectory(surface, cli, root);
+      const references = workerReferences(result.graph);
+      expect(references).toHaveLength(expected.length);
+      for (const [source, declared_specifier, resolved_path] of expected)
+        expect(references).toContainEqual(
+          expect.objectContaining({
+            source,
+            declared_specifier,
+            resolved_path,
+            mapped_paths: [resolved_path],
+          }),
+        );
+    }
+  },
+);
+
+cliTest(
   "promotes Worker URLs only for known constructor bindings through the CLI",
   async ({ cli }) => {
     const root = await createTestTempDirectory("rea-worker-identity-");
