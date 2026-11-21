@@ -50,7 +50,7 @@ interface JavaScriptStaticReferenceState {
    * when it reads like a package name.
    */
   readonly loader?: "commonjs-loader" | "factory-loader" | "create-require";
-  /** The literal is observed but the CommonJS loader is not established. */
+  /** The call may use a module loader, but its identity is not established. */
   readonly loader_authority?: "candidate";
   readonly location: JavaScriptSourceRange;
 }

@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 
 import { analyzeJavaScriptStaticSource } from "../../../tests/fixtures/javascriptStaticAnalysis.js";
+import { analyzeCommonJsStaticFixture } from "../../../tests/fixtures/javascriptCommonJsAnalysis.js";
 
 it("keeps a self-defaulted module delegate as a possible load", () => {
   expect(
@@ -197,5 +198,58 @@ it.each([
         .filter(({ kind }) => kind === "require")
         .map(({ specifier }) => specifier),
     ).toEqual(expected ? [null] : []);
+  },
+);
+
+it("preserves uncertain loader authority when no module specifier can be retained", () => {
+  const source = `const box = { load: module.require }; box.load = box.load || null; box.load.call(module, "./dep.cjs");`;
+  const refs = analyzeJavaScriptStaticSource(source).references.filter(
+    ({ kind }) => kind === "require",
+  );
+  expect(refs).toHaveLength(1);
+  expect(refs[0]).toMatchObject({
+    specifier: null,
+    loader_authority: "candidate",
+  });
+});
+
+it("keeps proven loader identity for a dynamic module specifier", () => {
+  const refs = analyzeCommonJsStaticFixture(
+    `require(target);`,
+  ).references.filter(({ kind }) => kind === "require");
+  expect(refs).toHaveLength(1);
+  expect(refs[0]).toMatchObject({ specifier: null });
+  expect(refs[0]).not.toHaveProperty("loader_authority");
+});
+
+it("keeps established createRequire identity when its base is unknown", () => {
+  const source = `import {createRequire} from "node:module"; const load = createRequire(process.env.BASE); load("./dep.cjs");`;
+  const refs = analyzeJavaScriptStaticSource(source).references.filter(
+    ({ kind }) => kind === "require",
+  );
+  expect(refs).toHaveLength(1);
+  expect(refs[0]).toMatchObject({ specifier: null });
+  expect(refs[0]).not.toHaveProperty("loader_authority");
+});
+
+it.each([
+  ["call", false],
+  ["apply", false],
+  ["resolve", true],
+] as const)(
+  "does not assert a proven loader after %s is replaced",
+  (method, candidate) => {
+    const source = `const load = require; load.${method} = () => {}; load.${method}(null, "./dep.cjs");`;
+    const refs = analyzeCommonJsStaticFixture(source).references.filter(
+      ({ kind }) => kind === "require",
+    );
+    if (!candidate) expect(refs).toEqual([]);
+    else
+      expect(refs).toEqual([
+        expect.objectContaining({
+          specifier: null,
+          loader_authority: "candidate",
+        }),
+      ]);
   },
 );

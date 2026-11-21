@@ -338,9 +338,11 @@ const requireCallSpecifier = (
     return {
       specifier: candidate,
       operation: call.operation,
-      ...(candidate === undefined
-        ? {}
-        : { loaderAuthority: "candidate" as const }),
+      ...(call.loader === "unknown" ||
+      call.memberUnproven ||
+      call.loaderAuthority === "candidate"
+        ? { loaderAuthority: "candidate" as const }
+        : {}),
     };
   }
   return {

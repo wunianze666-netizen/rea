@@ -460,6 +460,11 @@ Selected bounded text is then parsed as inert data to recover:
 - utility-process entrypoints and native `.node` binding requests without
   parsing or executing the add-on.
 
+A possible CommonJS load with an unestablished loader retains candidate
+authority even when its specifier is unknown. Its application-graph edge has
+low confidence and no assumed resolution mode. A known loader with a dynamic
+specifier retains its loader identity while the target remains unresolved.
+
 Overloaded `.open` calls use lexical receiver facts: ambient browser window and
 document receivers are treated as browsing-context or document operations,
 while locally shadowed receivers can still contribute network endpoint
